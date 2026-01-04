@@ -1,0 +1,15 @@
+[package]
+name = "gitlet"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sha1 = "0.10"
+
+[[bin]]
+name = "dump_obj"
+path = "src/dump_obj.rs"
+
+[lib]
+name = "gitlet"
+path = "src/lib.rs"
