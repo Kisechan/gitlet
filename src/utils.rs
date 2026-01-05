@@ -8,7 +8,7 @@
 use sha1::{Sha1, Digest};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 
 // 完整 SHA-1 UID 作为十六进制数字的长度
 pub const UID_LENGTH: usize = 40;
