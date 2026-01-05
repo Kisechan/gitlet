@@ -5,3 +5,17 @@ pub struct Blob {
     pub name: String,
     pub content: Vec<u8>,
 }
+
+impl Blob {
+    pub fn new(name: String, content: Vec<u8>) -> Self {
+        Blob { name, content }
+    }
+
+    pub fn get_data(&self) -> Vec<u8> {
+        bincode::serialize(self).expect("无法序列化 blob")
+    }
+
+    pub fn get_id(&self) -> String {
+        crate::utils::sha1(&[&self.get_data()])
+    }
+}

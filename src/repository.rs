@@ -4,9 +4,10 @@
 // @author TODO
 
 use std::path::{PathBuf};
-
 use crate::commit::Commit;
 use crate::utils::*;
+use crate::index::Index;
+use crate::blob::Blob;
 
 // Gitlet 仓库结构
 pub struct Repository {
@@ -59,6 +60,10 @@ impl Repository {
     pub fn head_file() -> PathBuf {
         Self::gitlet_dir().join("HEAD")
     }
+
+    pub fn index_file() -> PathBuf {
+        Self::gitlet_dir().join("index")
+    }
     
     pub fn exists(&self) -> bool {
         Self::gitlet_dir().exists() && Self::gitlet_dir().is_dir()
@@ -74,10 +79,18 @@ impl Repository {
     }
 
     pub fn init_dirs(&self) {
+        std::fs::create_dir_all(Self::gitlet_dir()).expect("无法创建 .gitlet 目录");
         std::fs::create_dir_all(Self::objects_dir()).expect("无法创建 objects 目录");
+        std::fs::create_dir_all(Self::commits_dir()).expect("无法创建 commits 目录");
+        std::fs::create_dir_all(Self::blobs_dir()).expect("无法创建 blobs 目录");
         std::fs::create_dir_all(Self::refs_dir()).expect("无法创建 refs 目录");
         std::fs::create_dir_all(Self::refs_heads_dir()).expect("无法创建 refs/heads 目录");
         std::fs::create_dir_all(Self::refs_tags_dir()).expect("无法创建 refs/tags 目录");
+    }
+
+    pub fn load_commit(&self, commit_id: &str) -> Commit {
+        let data = read_contents(Self::commits_dir().join(commit_id)).expect("无法读取提交文件");
+        bincode::deserialize(&data).expect("无法反序列化提交对象")
     }
 
     pub fn save_commit(&self, commit: &Commit) {
@@ -85,6 +98,48 @@ impl Repository {
         let commit_id = commit.get_id();
 
         write_contents(Self::commits_dir().join(&commit_id), &[&data]).expect("无法写入提交文件");
+    }
+
+    pub fn load_index(&self) -> Index {
+        if Self::index_file().exists() {
+            let data = read_contents(Self::index_file()).expect("无法读取索引文件");
+            serde_json::from_slice(&data).unwrap_or_else(|_| Index::new())
+        } else {
+            Index::new()
+        }
+    }
+
+    pub fn save_index(&self, index: &Index) {
+        let data = serde_json::to_vec(index).expect("无法序列化索引");
+        write_contents(Self::index_file(), &[&data]).expect("无法写入索引文件");
+    }
+
+    pub fn load_blob(&self, blob_id: &str) -> Blob {
+        let data = read_contents(Self::blobs_dir().join(blob_id)).expect("无法读取 blob 文件");
+        bincode::deserialize(&data).expect("无法反序列化提交对象")
+    }
+
+    pub fn save_blob(&self, blob: Blob){
+        let data = blob.get_data();
+        let blob_id = blob.get_id();
+
+        write_contents(Self::blobs_dir().join(&blob_id), &[&data]).expect("无法写入 blob 文件");
+    }
+
+    pub fn get_head_commit(&self) -> Commit {
+        let head_ref = read_contents(Self::head_file()).expect("无法读取 HEAD 文件");
+        let head_ref_str = String::from_utf8(head_ref).expect("HEAD 文件内容不是有效的 UTF-8 字符串");
+        let head_ref_path = Self::gitlet_dir().join(head_ref_str.trim());
+        let commit_id = read_contents(head_ref_path).expect("无法读取 HEAD 指向的引用文件");
+        let commit_id_str = String::from_utf8(commit_id).expect("引用文件内容不是有效的 UTF-8 字符串");
+        self.load_commit(commit_id_str.trim())
+    }
+
+    pub fn add_file(&self, filename: &str) {
+        // 如果文件不存在，抛出异常
+        let data = read_contents(filename).expect(&format!("读取文件 {} 失败", filename));
+        let blob_id = sha1(&[&data]);
+
     }
  
     // TODO: 填写这个类的其余部分

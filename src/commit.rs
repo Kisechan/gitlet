@@ -26,6 +26,18 @@ pub struct Commit {
 
 impl Commit {
     // TODO: 填写这个类的其余部分
+    pub fn new(message: String, parent: Option<String>, tree: HashMap<String, String>) -> Self {
+        Commit {
+            message,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("时间戳设置错误")
+                .as_secs(),
+            parent,
+            tree,
+        }
+    }
+
     pub fn initial() -> Self {
         Commit {
             message: "initial commit".to_string(),

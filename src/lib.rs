@@ -7,10 +7,12 @@ pub mod gitlet_exception;
 pub mod repository;
 pub mod utils;
 pub mod blob;
+pub mod index;
 
 pub use commit::Commit;
 pub use dumpable::Dumpable;
 pub use gitlet_exception::GitletException;
 pub use repository::Repository;
-pub use utils::GitletError;
+pub use utils::*;
 pub use blob::Blob;
+pub use index::Index;

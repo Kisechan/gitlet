@@ -35,9 +35,15 @@ fn main() {
             // TODO: 处理 `init` 命令
         }
         "add" => {
+            if args.len() != 3 {
+                eprintln!("Incorrect operands.");
+                std::process::exit(0);
+            }
             if !repo.exists() {
                 std::process::exit(0);
             }
+            let filename = &args[2];
+            repo.add_file(filename);
             // TODO: 处理 `add [filename]` 命令
         }
         // TODO: 填写其余部分
