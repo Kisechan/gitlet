@@ -150,12 +150,49 @@ impl Repository {
                 return;
             }
         }
-        self.save_blob(&Blob::new(filename.to_string(), data));
+        self.save_blob(&Blob::new(data));
 
         let mut index = self.load_index();
         index.files.insert(filename.to_string(), blob_id);
         self.save_index(&index);
     }
- 
-    // TODO: 填写这个类的其余部分
+
+    pub fn commit(&self, message: &str) {
+        if message.trim().is_empty() {
+            eprintln!("提交信息不能为空");
+        }
+
+        let index = self.load_index();
+        if index.files.is_empty() {
+            eprintln!("没有要提交的更改");
+        }
+
+        let head_commit = self.get_head_commit();
+        let mut new_tree = head_commit.tree.clone();
+        for (filename, blob_id) in index.files {
+            new_tree.insert(filename.clone(), blob_id.clone());
+        }
+
+        let new_commit = Commit::new(
+            message.to_string(),
+            Some(head_commit.get_id()),
+            new_tree,
+        );
+
+        self.save_commit(&new_commit);
+        let head_ref = read_contents(Self::head_file())
+            .expect("无法读取 HEAD 文件");
+        write_contents(
+            Self::gitlet_dir()
+                .join(String::from_utf8(head_ref)
+                .expect("HEAD 文件内容无效")
+                .trim()
+            ),
+             &[new_commit.get_id().as_bytes()])
+            .expect("无法更新 HEAD 指向的引用文件");
+        // 清空索引
+        self.save_index(&Index::new());
+    }
+    
+
 }

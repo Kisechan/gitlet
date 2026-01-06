@@ -11,7 +11,6 @@ use gitlet::commit::Commit;
 fn main() {
     let args: Vec<String> = env::args().collect();
     
-    // TODO: 如果 args 为空怎么办?
     if args.len() < 2 {
         eprintln!("Please enter a command.");
         return;
@@ -32,7 +31,6 @@ fn main() {
             repo.save_commit(&initial_commit);
             repo.create_branch("master", &initial_commit.get_id().as_str());
             repo.set_head("refs/heads/master");
-            // TODO: 处理 `init` 命令
         }
         "add" => {
             if args.len() != 3 {
@@ -44,9 +42,19 @@ fn main() {
             }
             let filename = &args[2];
             repo.add_file(filename);
-            // TODO: 处理 `add [filename]` 命令
         }
-        // TODO: 填写其余部分
+        "commit" => {
+            if args.len() != 3 {
+                eprintln!("Please enter a commit message.");
+                std::process::exit(0);
+            }
+            if !repo.exists() {
+                eprintln!("Not in an initialized Gitlet directory.");
+                std::process::exit(0);
+            }
+            let message = &args[2];
+            repo.commit(message);
+        }
         _ => {
             eprintln!("No command with that name exists.");
         }
