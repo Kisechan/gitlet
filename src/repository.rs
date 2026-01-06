@@ -119,7 +119,7 @@ impl Repository {
         bincode::deserialize(&data).expect("无法反序列化提交对象")
     }
 
-    pub fn save_blob(&self, blob: Blob){
+    pub fn save_blob(&self, blob: &Blob){
         let data = blob.get_data();
         let blob_id = blob.get_id();
 
@@ -139,7 +139,22 @@ impl Repository {
         // 如果文件不存在，抛出异常
         let data = read_contents(filename).expect(&format!("读取文件 {} 失败", filename));
         let blob_id = sha1(&[&data]);
+        let head_commit = self.get_head_commit();
+        let cur_tree = head_commit.tree;
+        if let Some(existing_blob_id) = cur_tree.get(filename) {
+            if existing_blob_id == &blob_id {
+                // 文件未更改
+                let mut index = self.load_index();
+                index.files.remove(filename);
+                self.save_index(&index);
+                return;
+            }
+        }
+        self.save_blob(&Blob::new(filename.to_string(), data));
 
+        let mut index = self.load_index();
+        index.files.insert(filename.to_string(), blob_id);
+        self.save_index(&index);
     }
  
     // TODO: 填写这个类的其余部分

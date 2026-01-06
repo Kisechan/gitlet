@@ -18,10 +18,10 @@ pub struct Commit {
     // 注释说明该变量代表什么以及如何使用该变量。我们已经为您提供了一个关于 `message` 的示例。
     
     // 此 Commit 的消息
-    message: String,
-    timestamp: u64,
-    parent: Option<String>,
-    tree: HashMap<String, String>,
+    pub message: String,
+    pub timestamp: u64,
+    pub parent: Option<String>,
+    pub tree: HashMap<String, String>,
 }
 
 impl Commit {
