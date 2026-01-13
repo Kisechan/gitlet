@@ -55,6 +55,18 @@ fn main() {
             let message = &args[2];
             repo.commit(message);
         }
+        "rm" => {
+            if args.len() != 3 {
+                eprintln!("Incorrect operands.");
+                std::process::exit(0);
+            }
+            if !repo.exists() {
+                eprintln!("Not in an initialized Gitlet directory.");
+                std::process::exit(0);
+            }
+            let filename = &args[2];
+            repo.rm_file(filename);
+        }
         _ => {
             eprintln!("No command with that name exists.");
         }

@@ -154,22 +154,60 @@ impl Repository {
 
         let mut index = self.load_index();
         index.files.insert(filename.to_string(), blob_id);
+        index.removed.remove(filename);
+        self.save_index(&index);
+    }
+
+    pub fn rm_file(&self, filename: &str) {
+        let mut index = self.load_index();
+        let head_commit = self.get_head_commit();
+        let staged = index.files.contains_key(filename);
+        let tracked = head_commit.tree.contains_key(filename);
+
+        if !staged && !tracked {
+            eprintln!("文件 {} 未被跟踪", filename);
+            return;
+        }
+        
+        if staged {
+            index.files.remove(filename);
+        }
+
+        if tracked {
+            index.removed.insert(filename.to_string());
+            // let file_path = Self::cwd().join(filename);
+            // if file_path.exists() {
+            // restricted_delete(&file_path)
+            //     .unwrap_or_else(|_| {
+            //         eprintln!("无法删除文件 {}", filename);
+            //         false
+            //     });
+            // }
+        }
+
         self.save_index(&index);
     }
 
     pub fn commit(&self, message: &str) {
         if message.trim().is_empty() {
             eprintln!("提交信息不能为空");
+            return;
         }
 
         let index = self.load_index();
         if index.files.is_empty() {
             eprintln!("没有要提交的更改");
+            return;
         }
 
         let head_commit = self.get_head_commit();
         let mut new_tree = head_commit.tree.clone();
-        for (filename, blob_id) in index.files {
+
+        for filename in &index.removed {
+            new_tree.remove(filename);
+        }
+
+        for (filename, blob_id) in &index.files {
             new_tree.insert(filename.clone(), blob_id.clone());
         }
 
