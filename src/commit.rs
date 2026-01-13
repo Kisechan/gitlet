@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use crate::utils::sha1;
+use chrono::{Local, TimeZone, Datelike};
 
 // TODO: 在这里添加需要的任何导入
 
@@ -53,5 +54,25 @@ impl Commit {
 
     pub fn get_id(&self) -> String {
         sha1(&[&self.get_data()])
+    }
+
+    pub fn get_log(&self) -> String {
+        let time = Local.timestamp_opt(self.timestamp as i64, 0)
+            .single()
+            .unwrap_or_else(|| Local.timestamp_opt(0, 0).unwrap());
+        // 使用特定格式避免日期填充空格
+        let day = time.day();
+        let formatted_date = format!(
+            "{} {} {}",
+            time.format("%a %b"),
+            day,
+            time.format("%H:%M:%S %Y %z")
+        );
+        format!(
+            "===\ncommit {}\nDate: {}\n{}\n",
+            self.get_id(),
+            formatted_date,
+            self.message
+        )
     }
 }

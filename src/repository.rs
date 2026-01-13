@@ -136,8 +136,14 @@ impl Repository {
     }
 
     pub fn add_file(&self, filename: &str) {
-        // 如果文件不存在，抛出异常
-        let data = read_contents(filename).expect(&format!("读取文件 {} 失败", filename));
+        // 如果文件不存在，打印错误并返回
+        let data = match read_contents(filename) {
+            Ok(d) => d,
+            Err(_) => {
+                eprintln!("File does not exist.");
+                return;
+            }
+        };
         let blob_id = sha1(&[&data]);
         let head_commit = self.get_head_commit();
         let cur_tree = head_commit.tree;
@@ -165,7 +171,7 @@ impl Repository {
         let tracked = head_commit.tree.contains_key(filename);
 
         if !staged && !tracked {
-            eprintln!("文件 {} 未被跟踪", filename);
+            eprintln!("No reason to remove the file.");
             return;
         }
         
@@ -175,14 +181,10 @@ impl Repository {
 
         if tracked {
             index.removed.insert(filename.to_string());
-            // let file_path = Self::cwd().join(filename);
-            // if file_path.exists() {
-            // restricted_delete(&file_path)
-            //     .unwrap_or_else(|_| {
-            //         eprintln!("无法删除文件 {}", filename);
-            //         false
-            //     });
-            // }
+            let file_path = Self::cwd().join(filename);
+            if file_path.exists() {
+                let _ = restricted_delete(&file_path);
+            }
         }
 
         self.save_index(&index);
@@ -190,13 +192,13 @@ impl Repository {
 
     pub fn commit(&self, message: &str) {
         if message.trim().is_empty() {
-            eprintln!("提交信息不能为空");
+            eprintln!("Please enter a commit message.");
             return;
         }
 
         let index = self.load_index();
-        if index.files.is_empty() {
-            eprintln!("没有要提交的更改");
+        if index.files.is_empty() && index.removed.is_empty() {
+            eprintln!("No changes added to the commit.");
             return;
         }
 
@@ -232,5 +234,16 @@ impl Repository {
         self.save_index(&Index::new());
     }
     
-
+    pub fn log(&self) {
+        let mut cur_commit = self.get_head_commit();
+        loop {
+            println!("{}", cur_commit.get_log());
+            match &cur_commit.parent {
+                None => break,
+                Some(parent_id) => {
+                    cur_commit = self.load_commit(parent_id);
+                }
+            }                    
+        }
+    }
 }

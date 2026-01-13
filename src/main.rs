@@ -21,6 +21,11 @@ fn main() {
     let first_arg = &args[1];
     match first_arg.as_str() {
         "init" => {
+            if args.len() != 2 {
+                eprintln!("Incorrect operands.");
+                std::process::exit(0);
+            }
+
             if repo.exists() {
                 eprintln!("A Gitlet version-control system already exists in the current directory.");
                 std::process::exit(0);
@@ -66,6 +71,17 @@ fn main() {
             }
             let filename = &args[2];
             repo.rm_file(filename);
+        }
+        "log" => {
+            if args.len() != 2 {
+                eprintln!("Incorrect operands.");
+                std::process::exit(0);
+            }
+            if !repo.exists() {
+                eprintln!("Not in an initialized Gitlet directory.");
+                std::process::exit(0);
+            }
+            repo.log();
         }
         _ => {
             eprintln!("No command with that name exists.");
