@@ -261,4 +261,29 @@ impl Repository {
             }
         }
     }
+
+    pub fn find(&self, message: &str) {
+        let commit_dir = Self::commits_dir();
+        let entries = std::fs::read_dir(commit_dir).expect("无法读取 commits 目录");
+        let mut found = false;
+        for entry in entries {
+            if let Ok(entry) = entry {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(commit_id) = path.file_name() {
+                        if let Some(commit_id_str) = commit_id.to_str() {
+                            let commit = self.load_commit(commit_id_str);
+                            if commit.message == message {
+                                println!("{}", commit.get_id());
+                                found = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !found {
+            println!("Found no commit with that message.");
+        }
+    }
 }
