@@ -286,4 +286,66 @@ impl Repository {
             println!("Found no commit with that message.");
         }
     }
+
+    pub fn get_branches(&self) {
+        println!("Branches:");
+        let head_ref = read_contents(Self::head_file())
+            .expect("无法读取 HEAD 文件");
+        let head_ref_str = String::from_utf8(head_ref)
+            .expect("HEAD 文件内容无效");
+        let current_branch = head_ref_str
+            .trim()
+            .strip_prefix("refs/heads/")
+            .unwrap_or("");
+        let heads_dir = Self::refs_heads_dir();
+        if let Ok(entries) = std::fs::read_dir(heads_dir) {
+            let mut branches: Vec<String> = Vec::new();
+            for entry in entries.flatten() {
+                if let Some(branch_name) = entry.file_name().to_str() {
+                    branches.push(branch_name.to_string());
+                }
+            }
+            branches.sort();
+            for branch in branches {
+                if branch == current_branch {
+                    println!("*{}", branch);
+                } else {
+                    println!("{}", branch);
+                }
+            }
+        }
+    }
+
+    fn get_staged_files(&self) {
+        println!("Staged Files:");
+        let index = self.load_index();
+        let mut staged: Vec<&String> = index.files.keys().collect();
+        staged.sort();
+        for filename in staged {
+            println!("{}", filename);
+        }
+    }
+
+    fn get_removed_files(&self) {
+        println!("Removed Files:");
+        let index = self.load_index();
+        let mut removed: Vec<&String> = index.removed.iter().collect();
+        removed.sort();
+        for filename in removed {
+            println!("{}", filename);
+        }
+    }
+
+    pub fn status(&self) {
+        self.get_branches();
+        println!();
+        self.get_staged_files();
+        println!();
+        self.get_removed_files();
+        println!();
+        println!("Modifications Not Staged For Commit:");
+        println!();
+        println!("Untracked Files:");
+        println!();
+    }
 }

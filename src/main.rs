@@ -106,6 +106,17 @@ fn main() {
             let message = &args[2];
             repo.find(message);
         }
+        "status" => {
+            if args.len() != 2 {
+                eprintln!("Incorrect operands.");
+                std::process::exit(0);
+            }
+            if !repo.exists() {
+                eprintln!("Not in an initialized Gitlet directory.");
+                std::process::exit(0);
+            }
+            repo.status();
+        }
         _ => {
             eprintln!("No command with that name exists.");
         }
