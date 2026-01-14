@@ -1,7 +1,6 @@
 // 表示一个 gitlet 仓库
-// TODO: 这个类在更高的层次上做了什么，最好给一个描述
 //
-// @author TODO
+// @author Kisechan
 
 use std::path::{PathBuf};
 use crate::commit::Commit;
@@ -11,10 +10,7 @@ use crate::blob::Blob;
 
 // Gitlet 仓库结构
 pub struct Repository {
-    // TODO: 在这里添加实例变量
-    //
-    // 在这里列出 Repository 类的所有实例变量，上面有有用的
-    // 注释说明该变量代表什么以及如何使用该变量。我们已经为您提供了两个示例。
+
 }
 
 impl Repository {
@@ -244,6 +240,25 @@ impl Repository {
                     cur_commit = self.load_commit(parent_id);
                 }
             }                    
+        }
+    }
+    
+    pub fn global_log(&self) {
+        let commit_dir = Self::commits_dir();
+        let entries = std::fs::read_dir(commit_dir).expect("无法读取 commits");
+        for entry in entries {
+            if let Ok(entry) = entry {
+                let path = entry.path();
+                if path.is_file(){
+                    if let Some(commit_id) = path.file_name() {
+                        if let Some(commit_id_str) = commit_id.to_str() {
+                            // 加载并打印 commit
+                            let commit = self.load_commit(commit_id_str);
+                            println!("{}", commit.get_log());
+                        }
+                    }
+                }
+            }
         }
     }
 }

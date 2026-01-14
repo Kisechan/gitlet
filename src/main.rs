@@ -83,6 +83,17 @@ fn main() {
             }
             repo.log();
         }
+        "global-log" => {
+            if args.len() != 2 {
+                eprintln!("Incorrect operands.");
+                std::process::exit(0);
+            }
+            if !repo.exists() {
+                eprintln!("Not in an initialized Gitlet directory.");
+                std::process::exit(0);
+            }
+            repo.global_log();
+        }
         _ => {
             eprintln!("No command with that name exists.");
         }
