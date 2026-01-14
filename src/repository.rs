@@ -140,7 +140,8 @@ impl Repository {
                 return;
             }
         };
-        let blob_id = sha1(&[&data]);
+        let blob = Blob::new(data);
+        let blob_id = blob.get_id();   
         let head_commit = self.get_head_commit();
         let cur_tree = head_commit.tree;
         if let Some(existing_blob_id) = cur_tree.get(filename) {
@@ -152,7 +153,7 @@ impl Repository {
                 return;
             }
         }
-        self.save_blob(&Blob::new(data));
+        self.save_blob(&blob);
 
         let mut index = self.load_index();
         index.files.insert(filename.to_string(), blob_id);
