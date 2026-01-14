@@ -287,7 +287,7 @@ impl Repository {
         }
     }
 
-    pub fn get_branches(&self) {
+    fn get_branches(&self) {
         println!("Branches:");
         let head_ref = read_contents(Self::head_file())
             .expect("无法读取 HEAD 文件");
@@ -338,14 +338,120 @@ impl Repository {
 
     pub fn status(&self) {
         self.get_branches();
-        println!();
         self.get_staged_files();
-        println!();
         self.get_removed_files();
-        println!();
-        println!("Modifications Not Staged For Commit:");
-        println!();
-        println!("Untracked Files:");
-        println!();
+    }
+
+    fn restore_files_from_commit(&self, commit: &Commit, filename: &str) -> Result<(), String> {
+        match commit.tree.get(filename) {
+            Some(blob_id) => {
+                let blob = self.load_blob(blob_id);
+                write_contents(Self::cwd().join(filename), &[&blob.content])
+                    .map_err(|e| format!("无法写入文件 {}，错误原因：{}", filename, e))?;
+                Ok(())
+            }
+            None => Err("File does not exist in that commit.".to_string())
+        }
+    }
+
+    fn find_commit_by_prefix(&self, prefix: &str) -> Result<String, String> {
+        let commits_dir = Self::commits_dir();
+        let entries = std::fs::read_dir(commits_dir)
+            .map_err(|_| "无法读取 commits 目录".to_string())?;
+        let mut matches = Vec::new();
+        for entry in entries.flatten() {
+            if let Some(commit_id) = entry.file_name().to_str() {
+                if commit_id.starts_with(prefix) {
+                    matches.push(commit_id.to_string());
+                }
+            }
+        }
+        match matches.len() {
+            0 => Err("No commit with that id exists.".to_string()),
+            _ => Ok(matches[0].clone()),
+        }
+    }
+
+    // 检查是否有 untracked 文件会被覆盖
+    fn check_untracked_files(&self, current_commit: &Commit, target_commit: &Commit) -> Result<(), String> {
+        let index = self.load_index();
+        if let Ok(Some(working_files)) = plain_filenames_in(Self::cwd()) {
+            for filename in working_files {
+                // 跳过 .gitlet 目录中的文件
+                if filename.starts_with(".gitlet") {
+                    continue;
+                }
+                let tracked = current_commit.tree.contains_key(&filename);
+                let staged = index.files.contains_key(&filename);
+                if !tracked && !staged {
+                    if target_commit.tree.contains_key(&filename) {
+                        return Err("There is an untracked file in the way; delete it, or add and commit it first.".to_string());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn checkout_file(&self, filename: &str) {
+        let head_commit = self.get_head_commit();
+        if let Err(msg) = self.restore_files_from_commit(&head_commit, filename) {
+            eprintln!("{}", msg);
+        }
+    }
+
+    pub fn checkout_file_from_commit(&self, commit_id: &str, filename: &str) {
+        let full_commit_id = match self.find_commit_by_prefix(commit_id) {
+            Ok(id) => id,
+            Err(msg) => {
+                eprintln!("{}", msg);
+                return;
+            }
+        };
+        let commit = self.load_commit(&full_commit_id);
+        if let Err(msg) = self.restore_files_from_commit(&commit, filename) {
+            eprintln!("{}", msg);
+        }
+    }
+
+    pub fn checkout_branch(&self, branch_name: &str) {
+        let branch_path = Self::refs_heads_dir().join(branch_name);
+        if !branch_path.exists() {
+            eprintln!("No such branch exists.");
+            return;
+        }
+        let head_ref = read_contents(Self::head_file())
+            .expect("无法读取 HEAD 文件");
+        let head_ref_str = String::from_utf8(head_ref)
+            .expect("HEAD 文件内容无效");
+        let current_branch = head_ref_str
+            .trim()
+            .strip_prefix("refs/heads/")
+            .unwrap_or("");
+        if current_branch == branch_name {
+            eprintln!("No need to checkout the current branch.");
+            return;
+        }
+        let target_commit_id = read_contents_as_string(&branch_path)
+            .expect("无法读取分支文件");
+        let target_commit = self.load_commit(target_commit_id.trim());
+        let head_commit = self.get_head_commit();
+        if let Err(msg) = self.check_untracked_files(&head_commit, &target_commit) {
+            eprintln!("{}", msg);
+            return;
+        }
+        for filename in head_commit.tree.keys() {
+            if !target_commit.tree.contains_key(filename) {
+                let file_path = Self::cwd().join(filename);
+                if file_path.exists() {
+                    let _ = restricted_delete(&file_path);
+                }
+            }
+        }
+        for (filename, _) in &target_commit.tree {
+            let _ = self.restore_files_from_commit(&target_commit, filename);
+        }
+        self.set_head(&format!("refs/heads/{}", branch_name));
+        self.save_index(&Index::new());
     }
 }

@@ -117,6 +117,39 @@ fn main() {
             }
             repo.status();
         }
+        "checkout" => {
+            if !repo.exists() {
+                eprintln!("Not in an initialized Gitlet directory.");
+                std::process::exit(0);
+            }
+            match args.len() {
+                3 => {
+                    let branch_name = &args[2];
+                    repo.checkout_branch(branch_name);
+                }
+                4 => {
+                    if args[2] != "--" {
+                        eprintln!("Incorrect operands.");
+                        std::process::exit(0);
+                    }
+                    let filename = &args[3];
+                    repo.checkout_file(filename);
+                }
+                5 => {
+                    if args[3] != "--" {
+                        eprintln!("Incorrect operands.");
+                        std::process::exit(0);
+                    }
+                    let commit_id = &args[2];
+                    let filename = &args[4];
+                    repo.checkout_file_from_commit(commit_id, filename);
+                    }
+                _ => {
+                    eprintln!("Incorrect operands.");
+                    std::process::exit(0);
+                }
+            }
+        }
         _ => {
             eprintln!("No command with that name exists.");
         }
