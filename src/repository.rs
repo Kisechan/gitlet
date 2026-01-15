@@ -7,6 +7,7 @@ use crate::commit::Commit;
 use crate::utils::*;
 use crate::index::Index;
 use crate::blob::Blob;
+use std::collections::{HashSet, VecDeque};
 
 // Gitlet 仓库结构
 pub struct Repository {
@@ -517,5 +518,185 @@ impl Repository {
             &[full_commit_id.as_bytes()]
         ).expect("无法更新分支指针");
         self.save_index(&Index::new());
+    }
+
+    fn find_split_point(&self, commit1_id: &str, commit2_id: &str) -> String {
+        // BFS
+        let mut ancestors1 = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(commit1_id.to_string());
+        while let Some(commit_id) = queue.pop_front() {
+            if ancestors1.contains(&commit_id) {
+                continue;
+            }
+            ancestors1.insert(commit_id.clone());
+            let commit = self.load_commit(&commit_id);
+            if let Some(parent_id) = commit.parent {
+                queue.push_back(parent_id);
+            }
+        }
+        let mut current_id = commit2_id.to_string();
+        loop {
+            if ancestors1.contains(&current_id) {
+                return current_id;
+            }
+            let commit = self.load_commit(&current_id);
+            match commit.parent {
+                Some(parent_id) => current_id = parent_id,
+                None => return current_id,
+                // 到达 initial commit
+            }
+        }
+    }
+    
+    fn merge_commit(&self, message: &str) {
+        let index = self.load_index();
+        let head_commit = self.get_head_commit();
+        let mut new_tree = head_commit.tree.clone();
+        for filename in &index.removed {
+            new_tree.remove(filename);
+        }
+        for (filename, blob_id) in &index.files {
+            new_tree.insert(filename.clone(), blob_id.clone());
+        }
+        let new_commit = Commit::new(
+            message.to_string(),
+            Some(head_commit.get_id()),
+            new_tree,
+        );
+        self.save_commit(&new_commit);
+        let head_ref = read_contents(Self::head_file())
+            .expect("无法读取 HEAD 文件");
+        write_contents(
+            Self::gitlet_dir()
+                .join(String::from_utf8(head_ref)
+                .expect("HEAD 文件内容无效")
+                .trim()
+            ),
+             &[new_commit.get_id().as_bytes()])
+            .expect("无法更新 HEAD 指向的引用文件");
+        self.save_index(&Index::new());
+    }
+
+    pub fn merge(&self, branch_name: &str) {
+        let index = self.load_index();
+        if !index.files.is_empty() || !index.removed.is_empty() {
+            eprintln!("You have uncommitted changes.");
+            return;
+        }
+        let branch_path = Self::refs_heads_dir().join(branch_name);
+        if !branch_path.exists() {
+            eprintln!("A branch with that name does not exist.");
+            return;
+        }
+        let head_ref = read_contents(Self::head_file())
+            .expect("无法读取 HEAD 文件");
+        let head_ref_str = String::from_utf8(head_ref)
+            .expect("HEAD 文件内容无效");
+        let current_branch = head_ref_str
+            .trim()
+            .strip_prefix("refs/heads/")
+            .unwrap_or("");
+        if current_branch == branch_name {
+            eprintln!("Cannot merge a branch with itself.");
+            return;
+        }
+        let current_commit = self.get_head_commit();
+        let given_branch_commit_id = read_contents_as_string(&branch_path)
+            .expect("无法读取分支文件");
+        let given_commit = self.load_commit(given_branch_commit_id.trim());
+        let split_point_id = self.find_split_point(
+            &current_commit.get_id(),
+            &given_commit.get_id()
+        );
+        let split_commit = self.load_commit(&split_point_id);
+        if split_point_id == given_commit.get_id() {
+            println!("Given branch is an ancestor of the current branch.");
+            return;
+        }
+        if split_point_id == current_commit.get_id() {
+            self.checkout_branch(branch_name);
+            println!("Current branch fast-forwarded.");
+            return;
+        }
+        if let Err(msg) = self.check_untracked_files(&current_commit, &given_commit) {
+            eprintln!("{}", msg);
+            return;
+        }
+        let mut conflict = false;
+        let mut new_index = Index::new();
+        let mut all_files = HashSet::new();
+        for filename in split_commit.tree.keys() {
+            all_files.insert(filename.clone());
+        }
+        for filename in current_commit.tree.keys() {
+            all_files.insert(filename.clone());
+        }
+        for filename in given_commit.tree.keys() {
+            all_files.insert(filename.clone());
+        }
+        for filename in all_files {
+            let split_blob = split_commit.tree.get(&filename);
+            let current_blob = current_commit.tree.get(&filename);
+            let given_blob = given_commit.tree.get(&filename);
+            match (split_blob, current_blob, given_blob) {
+                // 在 given 中修改，在 current 中未修改
+                (Some(s), Some(c), Some(g)) if s == c && s != g => {
+                    self.restore_files_from_commit(&given_commit, &filename).ok();
+                    new_index.files.insert(filename.clone(), g.clone());
+                }
+                 // 在 current 中修改，在 given 中未修改
+                (Some(s), Some(c), Some(g)) if s == g && s != c => { }
+                (_, Some(c), Some(g)) if c == g => { }
+                (Some(_), None, None) => { }
+                // 不在 split point，只在 current
+                (None, Some(_), None) => { }
+                // 不在 split point，只在 given
+                (None, None, Some(g)) => {
+                    self.restore_files_from_commit(&given_commit, &filename).ok();
+                    new_index.files.insert(filename.clone(), g.clone());
+                }
+                // 在 split point，current 未修改，given 中删除
+                (Some(s), Some(c), None) if s == c => {
+                    let file_path = Self::cwd().join(&filename);
+                    if file_path.exists() {
+                        restricted_delete(&file_path).ok();
+                    }
+                    new_index.removed.insert(filename.clone());
+                }
+                // 在 split point，given 未修改，current 中删除
+                (Some(s), None, Some(g)) if s == g => { }
+                // 冲突情况
+                _ => {
+                    conflict = true;
+                    let current_content = if let Some(blob_id) = current_blob {
+                        self.load_blob(blob_id).content
+                    } else {
+                        Vec::new()
+                    };
+                    let given_content = if let Some(blob_id) = given_blob {
+                        self.load_blob(blob_id).content
+                    } else {
+                        Vec::new()
+                    };
+                    let mut conflict_content = Vec::new();
+                    conflict_content.extend_from_slice(b"<<<<<<< HEAD\n");
+                    conflict_content.extend_from_slice(&current_content);
+                    conflict_content.extend_from_slice(b"=======\n");
+                    conflict_content.extend_from_slice(&given_content);
+                    conflict_content.extend_from_slice(b">>>>>>>\n");
+                    write_contents(Self::cwd().join(&filename), &[&conflict_content]).ok();
+                    let blob = Blob::new(conflict_content);
+                    self.save_blob(&blob);
+                    new_index.files.insert(filename.clone(), blob.get_id());
+                }
+            }
+        }
+        self.save_index(&new_index);
+        let commit_message = format!("Merged {} into {}.", branch_name, current_branch);
+        self.merge_commit(&commit_message);
+        if conflict {
+            println!("Encountered a merge conflict.");
+        }
     }
 }
