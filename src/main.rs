@@ -6,8 +6,6 @@ use std::env;
 use gitlet::repository::Repository;
 use gitlet::commit::Commit;
 
-// 用法: cargo run -- ARGS, 其中 ARGS 包含
-// <COMMAND> <OPERAND1> <OPERAND2> ...
 fn main() {
     let args: Vec<String> = env::args().collect();
     
