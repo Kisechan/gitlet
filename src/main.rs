@@ -150,6 +150,42 @@ fn main() {
                 }
             }
         }
+        "branch" => {
+            if args.len() != 3 {
+                eprintln!("Incorrect operands.");
+                std::process::exit(0);
+            }
+            if !repo.exists() {
+                eprintln!("Not in an initialized Gitlet directory.");
+                std::process::exit(0);
+            }
+            let branch_name = &args[2];
+            repo.branch(branch_name);
+        }
+        "rm-branch" => {
+            if args.len() != 3 {
+                eprintln!("Incorrect operands.");
+                std::process::exit(0);
+            }
+            if !repo.exists() {
+                eprintln!("Not in an initialized Gitlet directory.");
+                std::process::exit(0);
+            }
+            let branch_name = &args[2];
+            repo.rm_branch(branch_name);
+        }
+        "reset" => {
+            if args.len() != 3 {
+                eprintln!("Incorrect operands.");
+                std::process::exit(0);
+            }
+            if !repo.exists() {
+                eprintln!("Not in an initialized Gitlet directory.");
+                std::process::exit(0);
+            }
+            let commit_id = &args[2];
+            repo.reset(commit_id);
+        }
         _ => {
             eprintln!("No command with that name exists.");
         }

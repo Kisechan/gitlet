@@ -455,4 +455,67 @@ impl Repository {
         self.set_head(&format!("refs/heads/{}", branch_name));
         self.save_index(&Index::new());
     }
+
+    pub fn branch(&self, branch_name: &str) {
+        let branch_path = Self::refs_heads_dir().join(branch_name);
+        if branch_path.exists() {
+            eprintln!("A branch with that name already exists.");
+            return;
+        }
+        let head_commit = self.get_head_commit();
+        let commit_id = head_commit.get_id();
+        self.create_branch(branch_name, &commit_id);
+    }
+
+    pub fn rm_branch(&self, branch_name: &str) {
+        let branch_path = Self::refs_heads_dir().join(branch_name);
+        if !branch_path.exists() {
+            eprintln!("A branch with that name does not exist.");
+            return;
+        }
+        let head_ref = read_contents(Self::head_file())
+            .expect("无法读取 HEAD 文件");
+        let head_ref_str = String::from_utf8(head_ref)
+            .expect("HEAD 文件内容无效");
+        let current_branch = head_ref_str
+            .trim()
+            .strip_prefix("refs/heads/")
+            .unwrap_or("");
+        if current_branch == branch_name {
+            eprintln!("Cannot remove the current branch.");
+            return;
+        }
+        std::fs::remove_file(branch_path)
+            .expect("无法删除分支文件");
+    }
+
+    pub fn reset(&self, commit_id: &str) {
+        let full_commit_id = self.find_commit_by_prefix(commit_id).unwrap();
+        let target_commit = self.load_commit(&full_commit_id);
+        let head_commit = self.get_head_commit();
+        if let Err(msg) = self.check_untracked_files(&head_commit, &target_commit) {
+            eprintln!("{}", msg);
+            return;
+        }
+        for filename in head_commit.tree.keys() {
+            if !target_commit.tree.contains_key(filename) {
+                let file_path = Self::cwd().join(filename);
+                if file_path.exists() {
+                    let _ = restricted_delete(&file_path);
+                }
+            }
+        }
+        for (filename, _) in &target_commit.tree {
+            let _ = self.restore_files_from_commit(&target_commit, filename);
+        }
+        let head_ref = read_contents(Self::head_file())
+            .expect("无法读取 HEAD 文件");
+        let head_ref_str = String::from_utf8(head_ref)
+            .expect("HEAD 文件内容无效");
+        write_contents(
+            Self::gitlet_dir().join(head_ref_str.trim()),
+            &[full_commit_id.as_bytes()]
+        ).expect("无法更新分支指针");
+        self.save_index(&Index::new());
+    }
 }
