@@ -1,0 +1,45 @@
+# Test reset command
+I definitions.inc
+> init
+<<<
++ wug.txt wug.txt
+> add wug.txt
+<<<
+> commit "version 1 of wug"
+<<<
++ wug.txt notwug.txt
+> add wug.txt
+<<<
+> commit "version 2 of wug"
+<<<
+= wug.txt notwug.txt
+# Get the commit IDs
+> log
+===
+${COMMIT_HEAD}
+version 2 of wug
+
+===
+${COMMIT_HEAD}
+version 1 of wug
+
+===
+${COMMIT_HEAD}
+initial commit
+
+<<<*
+# Reset to version 1 (using commit ID captured as ${2})
+> reset ${2}
+<<<
+= wug.txt wug.txt
+# Verify reset worked
+> log
+===
+${COMMIT_HEAD}
+version 1 of wug
+
+===
+${COMMIT_HEAD}
+initial commit
+
+<<<*

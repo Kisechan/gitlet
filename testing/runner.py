@@ -497,7 +497,8 @@ if __name__ == "__main__":
     errs = 0
     fails = 0
 
-    print(DEBUG_MSG)
+    if DEBUG:
+        print(DEBUG_MSG)
 
     for test in files:
         try:

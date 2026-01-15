@@ -1,0 +1,26 @@
+# Test find command
+I definitions.inc
+> init
+<<<
++ wug.txt wug.txt
+> add wug.txt
+<<<
+> commit "added wug"
+<<<
++ notwug.txt notwug.txt
+> add notwug.txt
+<<<
+> commit "added notwug"
+<<<
+# Find commit with message "added wug"
+> find "added wug"
+${ARBLINE}
+<<<*
+# Find commit with message "initial commit"
+> find "initial commit"
+${ARBLINE}
+<<<*
+# Find non-existent commit message
+> find "nonexistent message"
+Found no commit with that message.
+<<<
